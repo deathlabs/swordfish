@@ -5,50 +5,28 @@ on:
   push:
     branches: [ "**" ]
     paths:
+      - ".github/workflows/**"
       - "backend/**"
-      - "tools/**"
+      - "database/**"
       - "frontend/**"
+      - "inference/**"
+      - "tools/**"
+  workflow_dispatch:
+    inputs:
+      dockerfile_lint_check_failure_threshold:
+        description: "Threshold to fail the Dockerfile lint check."
+        type: choice
+        options: [error, warning, info, style, ignore]
+        default: error
+      sbom_scan_failure_threshold:
+        description: "Threshold to fail the SBOM scan."
+        type: choice
+        options: [low, high, critical]
+        default: low
+  schedule:
+    - cron: "00 12 * * *"
 
 jobs:
-
-  code-lint:
-    name: Code Lint Check
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        container:
-          - backend
-          - tools
-          - frontend
-    steps:
-      - name: Clone the repository
-        uses: actions/checkout@v4
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install Python dependencies
-        run: python -m pip install black
-      - name: Check code formatting
-        run: black --diff --color --check ${{ matrix.container }}
-
-  dockerfile-link:
-    name: Dockerfile Lint Check
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        container:
-          - backend
-          - tools
-          - frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hadolint/hadolint-action@v3.3.0
-        with:
-          failure-threshold: error
-          dockerfile: ${{ matrix.container }}/Dockerfile
 
   secrets:
     name: Secrets Scan
@@ -61,6 +39,48 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         continue-on-error: false
 
+  code-lint:
+    name: Code Lint Check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - backend
+          - inference
+          - tools
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v7
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: python -m pip install black
+      - name: Check code formatting
+        run: black --diff --color --check ${{ matrix.container }}
+
+  dockerfile-lint:
+    name: Dockerfile Lint Check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - backend
+          - database
+          - frontend
+          - inference
+          - tools
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: ${{ matrix.container }}/Dockerfile
+          failure-threshold: ${{ github.event.inputs.dockerfile_lint_check_failure_threshold || 'error' }}
+          format: json
+
   sast:
     name: SAST Scan
     runs-on: ubuntu-latest
@@ -69,8 +89,10 @@ jobs:
       matrix:
         container:
           - backend
-          - tools
+          - database
           - frontend
+          - inference
+          - tools
     container:
       image: semgrep/semgrep
     steps:
@@ -90,18 +112,21 @@ jobs:
       matrix:
         container:
           - backend
-          - tools
+          - database
           - frontend
+          - inference
+          - tools
     steps:
       - uses: actions/checkout@v6
-      - name: Run Syft
+      - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
+          format: cyclonedx
           path: ${{ matrix.container }}
           output-file: sbom-${{ matrix.container }}.json
-          artifact-name: sbom-${{ matrix.container }}
-      - name: Run Grype
+          artifact-name: sbom-${{ matrix.container }}.json
+      - name: Scan SBOM
         uses: anchore/scan-action@v7
         with:
           sbom: sbom-${{ matrix.container }}.json
-          severity-cutoff: high
+          severity-cutoff: ${{ github.event.inputs.sbom_scan_failure_threshold || 'low' }}
