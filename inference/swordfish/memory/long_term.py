@@ -1,17 +1,18 @@
 # Standard library imports.
+from collections.abc import Iterable
 from os import environ
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 # Third party imports.
 from httpx import AsyncClient
 from langgraph.store.base import (
+    NOT_PROVIDED,
     BaseStore,
     Item,
-    SearchItem,
     NotProvided,
-    NOT_PROVIDED,
     Op,
     Result,
+    SearchItem,
 )
 
 BACKEND_ENDPOINT = environ["BACKEND_ENDPOINT"]

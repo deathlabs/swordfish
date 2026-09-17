@@ -214,3 +214,5 @@ __marimo__/
 
 uv.lock
 .env.secrets
+swordfish-*.json
+vex.json

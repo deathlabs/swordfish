@@ -19,5 +19,5 @@ class MemorySchema(Schema):
     updated_at: datetime
 
 
-class NotFoundSchema(Schema):
+class NotFoundResponseSchema(Schema):
     message: str

@@ -7,14 +7,13 @@ on:
     paths:
       - ".github/workflows/**"
       - "backend/**"
-      - "database/**"
       - "frontend/**"
       - "inference/**"
       - "tools/**"
   workflow_dispatch:
     inputs:
-      dockerfile_lint_check_failure_threshold:
-        description: "Threshold to fail the Dockerfile lint check."
+      dockerfile_lint_scan_failure_threshold:
+        description: "Threshold to fail the Dockerfile lint scan."
         type: choice
         options: [error, warning, info, style, ignore]
         default: error
@@ -24,7 +23,7 @@ on:
         options: [low, high, critical]
         default: low
   schedule:
-    - cron: "00 12 * * *"
+    - cron: '00 12 * * *' 
 
 jobs:
 
@@ -32,15 +31,15 @@ jobs:
     name: Secrets Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Clone the repository
+      - name: Clone Repository
         uses: actions/checkout@v6
       - name: Run Trufflehog
         id: trufflehog
         uses: trufflesecurity/trufflehog@main
         continue-on-error: false
 
-  code-lint:
-    name: Code Lint Check
+  python-code-lint:
+    name: Python Code Lint Scan
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -50,36 +49,53 @@ jobs:
           - inference
           - tools
     steps:
-      - name: Clone the repository
+      - name: Clone Repository
         uses: actions/checkout@v7
-      - name: Install Python
-        uses: actions/setup-python@v6
+      - name: Run Python Ruff
+        uses: astral-sh/ruff-action@v4.1.0
         with:
-          python-version: "3.12"
-      - name: Install Python dependencies
-        run: python -m pip install black
-      - name: Check code formatting
-        run: black --diff --color --check ${{ matrix.container }}
-
+          src: ${{ matrix.container }}
+          args: check --exclude migrations --output-format=sarif --output-file=${{ matrix.container }}-lint-python-code-scan.sarif ${{ matrix.container }}
+      - name: Print Code Lint Scan
+        if: always()
+        run: cat ${{ matrix.container }}-lint-python-code-scan.sarif | jq '.'
+      - name: Upload Code Lint Scan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.container }}-lint-python-code-scan
+          path: ${{ matrix.container }}-lint-python-code-scan.sarif
+  
   dockerfile-lint:
-    name: Dockerfile Lint Check
+    name: Dockerfile Lint Scan
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         container:
           - backend
-          - database
           - frontend
           - inference
           - tools
     steps:
-      - uses: actions/checkout@v7
-      - uses: hadolint/hadolint-action@v3.3.0
+      - name: Clone Repository
+        uses: actions/checkout@v7
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: ${{ matrix.container }}/Dockerfile
-          failure-threshold: ${{ github.event.inputs.dockerfile_lint_check_failure_threshold || 'error' }}
-          format: json
+          failure-threshold: ${{ github.event.inputs.dockerfile_lint_scan_failure_threshold || 'error' }}
+          format: sarif
+          output-file: ${{ matrix.container }}-lint-dockerfile-scan.sarif
+      - name: Print Dockerfile Lint Scan
+        if: always()
+        run: cat ${{ matrix.container }}-lint-dockerfile-scan.sarif | jq '.'
+      - name: Upload Dockerfile Lint Scan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ matrix.container }}-lint-dockerfile-scan.sarif
+          archive: false
 
   sast:
     name: SAST Scan
@@ -89,17 +105,25 @@ jobs:
       matrix:
         container:
           - backend
-          - database
           - frontend
           - inference
           - tools
     container:
       image: semgrep/semgrep
     steps:
-      - name: Clone the repository
-        uses: actions/checkout@v6
+      - name: Clone Repository
+        uses: actions/checkout@v7
       - name: Run Semgrep
-        run: semgrep scan --config auto ${{ matrix.container }}
+        run: semgrep scan --config auto ${{ matrix.container }} --sarif --sarif-output=${{ matrix.container }}-sast-scan.sarif
+      - name: Print SAST Scan
+        if: always()
+        run: cat ${{ matrix.container }}-sast-scan.sarif | jq '.'
+      - name: Upload SAST Scan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ matrix.container }}-sast-scan.sarif
+          archive: false
 
   sca:
     name: SBOM Scan
@@ -112,21 +136,42 @@ jobs:
       matrix:
         container:
           - backend
-          - database
           - frontend
           - inference
           - tools
     steps:
-      - uses: actions/checkout@v6
-      - name: Generate SBOM
+      - name: Clone Repository
+        uses: actions/checkout@v6
+      - name: Run Syft
         uses: anchore/sbom-action@v0
         with:
-          format: cyclonedx
           path: ${{ matrix.container }}
-          output-file: sbom-${{ matrix.container }}.json
-          artifact-name: sbom-${{ matrix.container }}.json
-      - name: Scan SBOM
-        uses: anchore/scan-action@v7
+          format: cyclonedx-json
+          output-file: ${{ matrix.container }}-sbom.json
+          artifact-name: ${{ matrix.container }}-sbom.json
+      - name: Run Grype
+        id: grype
+        uses: anchore/scan-action@v7.4.0
         with:
-          sbom: sbom-${{ matrix.container }}.json
+          sbom: ${{ matrix.container }}-sbom.json
+          vex: ${{ hashFiles(format('.github/vex/{0}-vex.json', matrix.container)) != '' && format('.github/vex/{0}-vex.json', matrix.container) || '' }}
           severity-cutoff: ${{ github.event.inputs.sbom_scan_failure_threshold || 'low' }}
+          output-format: cyclonedx-json
+          output-file: ${{ matrix.container }}-sbom-scan.json
+          fail-build: true
+      - name: Print SBOM Scan
+        if: always()
+        run: jq -r '
+            (.vulnerabilities // [])[] |
+            [
+              ((.ratings[]? | select(.severity != null) | .severity) // "unknown"),
+              .id,
+              (try ((.affects[0].ref // "") | capture("pkg:(?<pkg>[^?]+)").pkg) catch "unknown")
+            ] | @tsv
+          ' ${{ matrix.container }}-sbom-scan.json | sort | column -t
+      - name: Upload SBOM Scan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ matrix.container }}-sbom-scan.json
+          archive: false

@@ -1,26 +1,7 @@
 services:
 
-  backend:
-    profiles: [ all, backend, database ]
-    build: backend
-    image: swordfish/backend:latest
-    container_name: swordfish-backend
-    ports:
-      - "8000:8000"
-    env_file:
-      - backend/.env
-    depends_on:
-      database:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/v1/healthcheck/ > /dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 2
-      start_period: 5s
-
   database:
-    profiles: [ all, backend, database ]
+    profiles: [ all, database, inference ]
     build: database
     image: swordfish/database:latest
     container_name: swordfish-database
@@ -37,23 +18,42 @@ services:
       retries: 2
       start_period: 5s
 
-  docs:
-    profiles: [ docs ]
-    build: docs
-    image: swordfish/docs:latest
-    container_name: swordfish-docs
+  backend:
+    profiles: [ all, backend, inference ]
+    build: backend
+    image: swordfish/backend:latest
+    container_name: swordfish-backend
     ports:
-      - "5050:5050"
-
-  frontend:
-    profiles: [ all, frontend ]
-    build: frontend
-    image: swordfish/frontend:latest
-    container_name: swordfish-frontend
-    ports:
-      - "80:8501"
+      - "8000:8000"
     env_file:
-      - frontend/.env
+      - backend/.env
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/v1/health/ > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 5s
+
+  tools:
+    profiles: [ all, tools, inference ]
+    build: tools
+    image: swordfish/tools:latest
+    container_name: swordfish-tools
+    ports:
+      - "8002:8002"
+    volumes:
+      - downloads:/home/swordfish/downloads
+    env_file:
+      - tools/.env
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8002/api/v1/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+      start_period: 5s
 
   inference:
     profiles: [ all, inference ]
@@ -62,6 +62,8 @@ services:
     container_name: swordfish-inference
     ports:
       - "8001:8001"
+    volumes:
+      - downloads:/home/swordfish/downloads
     env_file:
       - inference/.env
     depends_on:
@@ -70,21 +72,19 @@ services:
       tools:
         condition: service_healthy
 
-  tools:
-    profiles: [ all, tools ]
-    build: tools
-    image: swordfish/tools:latest
-    container_name: swordfish-tools
+  frontend:
+    profiles: [ all, frontend ]
+    build:
+      context: frontend
+      args:
+        - LANGGRAPH_DEPLOYMENT_URL="http://swordfish-inference:8001/api/v1"
+    image: swordfish/frontend:latest
+    container_name: swordfish-frontend
     ports:
-      - "8002:8002"
+      - "80:8501"
     env_file:
-      - tools/.env
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8002/api/v1/healthcheck > /dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 2
-      start_period: 5s
+      - frontend/.env
 
 volumes:
   database:
+  downloads:

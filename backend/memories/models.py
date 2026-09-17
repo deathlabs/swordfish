@@ -9,6 +9,6 @@ class Memory(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["namespace", "key"], name="unique_memory")
-        ]
+        constraints = (
+            models.UniqueConstraint(fields=["namespace", "key"], name="unique_memory"),
+        )

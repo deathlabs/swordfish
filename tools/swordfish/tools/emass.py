@@ -1,13 +1,14 @@
 # Standard library imports.
 from base64 import b64decode
 from os import environ, path
-from ssl import SSLContext, PROTOCOL_TLS_CLIENT
+from ssl import PROTOCOL_TLS_CLIENT, SSLContext
 from tempfile import NamedTemporaryFile
-from urllib.request import urlopen, Request
+from urllib.request import Request, urlopen
+
+from fastmcp.dependencies import CurrentHeaders
 
 # Third party imports.
 from fastmcp.tools import tool
-from fastmcp.dependencies import CurrentHeaders
 
 # Set and check environment variables.
 EMASS_API_URL = environ["EMASS_API_URL"]
@@ -44,16 +45,16 @@ def _get_headers(headers: dict[str, str], name: str) -> str:
 
 # Sends an HTTP GET request to eMASS.
 def _emass_get_request(path: str, headers: dict[str, str]) -> dict:
-    api_key = _get_headers(headers, "x-emass-api-key")
-    user_uid = _get_headers(headers, "x-emass-user-uid")
+    # api_key = _get_headers(headers, "x-emass-api-key")
+    # user_uid = _get_headers(headers, "x-emass-user-uid")
     public_cert_pem = b64decode(_get_headers(headers, "x-emass-public-cert"))
     private_key_pem = b64decode(_get_headers(headers, "x-emass-private-key"))
     ctx = _build_ssl_context(public_cert_pem, private_key_pem)
     request = Request(
         url=f"{EMASS_API_URL}{path}",
         headers={
-            "api-key": api_key,
-            "user-uid": user_uid,
+            # "api-key": api_key,
+            # "user-uid": user_uid,
             "accept": "application/json",
             "content-type": "application/json",
         },
@@ -66,7 +67,9 @@ def _emass_get_request(path: str, headers: dict[str, str]) -> dict:
 
 @tool(description="Test connectivity to eMASS.")
 def test_connection(
-    headers: dict[str, str] = CurrentHeaders(),
+    headers: dict[str, str] | None = None,
 ) -> dict:
+    if headers is None:
+        headers = CurrentHeaders()
     response = _emass_get_request("/api", headers)
     return response

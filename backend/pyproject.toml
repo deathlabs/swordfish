@@ -1,0 +1,23 @@
+[project]
+name = "swordfish"
+version = "0.1.0"
+requires-python = ">=3.14.7,<3.15"
+dependencies = [
+    "django-ninja",
+    "django-ninja-jwt>=5.4.5",
+    "psycopg2-binary",
+    "pydantic[email]>=2.13.4",
+    "tzdata",
+    "uvicorn",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "ninja.Query",
+    "ninja.Path",
+    "ninja.Body",
+    "ninja.Form",
+    "ninja.File",
+    "ninja.Header",
+    "ninja.Cookie",
+]

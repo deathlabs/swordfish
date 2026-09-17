@@ -9,12 +9,12 @@ from fastapi import FastAPI
 from langchain.agents import create_agent
 
 # Local imports.
-from swordfish.memory.context_schema import ContextSchema
-from swordfish.memory.long_term import DjangoStore
-from swordfish.memory.short_term import DjangoCheckpointSaver
-from swordfish.models import get_model_client
-from swordfish.prompts.system_prompt import get_system_prompt
-from swordfish.tools import get_environment_tools, get_memory_tools
+from memory.long_term import DjangoStore
+from memory.short_term import DjangoCheckpointSaver
+from models import get_model_client
+from prompts.system_prompt import get_system_prompt
+
+from tools import get_environment_tools, get_memory_tools
 
 # Get environment variables.
 MODEL_PROVIDER = environ["MODEL_PROVIDER"]
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
         model=get_model_client(model_provider=MODEL_PROVIDER),
         tools=memory_tools + environment_tools,
         system_prompt=get_system_prompt(),
-        context_schema=ContextSchema,
+        # context_schema=ContextSchema,
         checkpointer=DjangoCheckpointSaver(),
         store=DjangoStore(),
     )

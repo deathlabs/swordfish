@@ -1,0 +1,10 @@
+---
+advisories:
+  - vulnerability: CVE-2025-60876
+    status: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    impact_statement: The BusyBox wget applet is included in the Alpine operating system, but this service does not use it.
+    products:
+      - pkg:apk/alpine/busybox@1.37.0-r31
+      - pkg:apk/alpine/busybox-binsh@1.37.0-r31
+      - pkg:apk/alpine/ssl_client@1.37.0-r31

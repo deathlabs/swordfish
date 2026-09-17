@@ -1,13 +1,19 @@
-FROM alpine:3.23
-LABEL image.authors="Victor Fernandez III, <@cyberphor>"
-WORKDIR /home/frontend/
-COPY requirements.txt requirements.txt
-RUN apk add --no-cache --update python3 py3-pip &&\
-    pip install --break-system-packages -r requirements.txt
-COPY .streamlit .streamlit
-COPY swordfish/ swordfish/
-RUN adduser -D swordfish -h /home/frontend/ &&\
-    chown -R swordfish:swordfish /home/frontend/
-USER swordfish
-EXPOSE 8501
-ENTRYPOINT [ "streamlit", "run", "swordfish/main.py" ]
+FROM node:alpine3.24 AS stage_1
+ARG LANGGRAPH_DEPLOYMENT_URL
+ENV LANGGRAPH_DEPLOYMENT_URL=${LANGGRAPH_DEPLOYMENT_URL}
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+WORKDIR /home/swordfish/
+COPY swordfish/ .
+RUN echo "[*] LANGGRAPH_DEPLOYMENT_URL has been set to '$LANGGRAPH_DEPLOYMENT_URL'" &&\
+    npm install && npm run build
+
+FROM node:alpine3.24
+LABEL image.authors="Victor Fernandez III, @cyberphor"
+WORKDIR /home/swordfish/
+COPY --from=stage_1 /home/swordfish/.next/standalone/ .
+COPY --from=stage_1 /home/swordfish/.next/static/ .next/static/
+COPY --from=stage_1 /home/swordfish/public/ public/
+ENV PORT=3000
+EXPOSE 3000
+USER node
+CMD ["node", "server.js"]

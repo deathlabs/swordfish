@@ -1,15 +1,19 @@
-# Third party imports
-from django.contrib import admin
-from django.urls import path
-
+# Standard library imports.
 # Local imports.
-from .healthcheck import api as health_api
-from checkpoints.api import api as checkpoints_api
-from memories.api import api as memories_api
+from django.urls import path
+from ninja import NinjaAPI
+
+from checkpoints.router import checkpoints_router
+from memories.router import memories_router
+
+from .health import api as health_api
+
+api = NinjaAPI()
+api.add_router("/health/", health_api)
+api.add_router("/checkpoints/", checkpoints_router)
+api.add_router("/memories", memories_router)
+
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("api/v1/checkpoints/", checkpoints_api.urls),
-    path("api/v1/healthcheck/", health_api.urls),
-    path("api/v1/memories/", memories_api.urls),
+    path("api/v1/", api.urls),
 ]

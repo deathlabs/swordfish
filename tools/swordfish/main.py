@@ -1,6 +1,6 @@
 # Local imports.
 from swordfish.config import FASTMCP_PORT
-from tools.swordfish.tools.emass import get_mcp_server
+from swordfish.server import get_mcp_server
 
 
 def main():

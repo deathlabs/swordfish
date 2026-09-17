@@ -1,13 +1,6 @@
 ---
 site_name: swordfish
 docs_dir: swordfish
-theme:
-  name: null
-  custom_dir: swordfish/theme
-extra_css:
-  - css/theme.css
+theme: readthedocs
 nav:
   - "Getting Started": user-guide/getting-started.md
-  - "Architecture": developer-guide/architecture.md
-  - "Data Flow": developer-guide/data-flow.md
-  - "Design Principles": developer-guide/design-principles.md
